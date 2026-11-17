@@ -110,7 +110,9 @@ function connectNow() {
       count = rc - prev;
       if (d.repeatEnd) streaks.delete(key); else streaks.set(key, rc);
     }
-    if (count > 0) broadcast({ type: 'gift', user: u.name, gift: name, diamonds, count });
+    const img = d.giftPictureUrl || det.giftPictureUrl || det.giftImage?.giftPictureUrl ||
+      det.image?.url_list?.[0] || det.image?.urlList?.[0] || info.image?.url_list?.[0] || info.icon?.url_list?.[0] || '';
+    if (count > 0) broadcast({ type: 'gift', user: u.name, gift: name, diamonds, count, img });
   });
 
   c.on('like', d => {
@@ -136,6 +138,7 @@ function connectNow() {
       if (c !== conn) return;
       tries = 0;
       setStatus('connected', `@${wantUser} yayınına bağlandı${state?.roomId ? ' (oda ' + state.roomId + ')' : ''}`);
+      loadGiftList(c);
     })
     .catch(e => {
       if (c !== conn) return;
@@ -143,6 +146,21 @@ function connectNow() {
       // Yayın henüz açık değilse sürekli tekrar dene: yayını açınca kendiliğinden bağlanır
       scheduleRetry(15, `@${wantUser} şu an canlı yayında görünmüyor.`);
     });
+}
+
+// ---------- hediye resimleri ----------
+let giftList = [];
+function loadGiftList(c) {
+  const fn = c.fetchAvailableGifts || c.getAvailableGifts;
+  if (!fn) return;
+  Promise.resolve(fn.call(c)).then(list => {
+    const arr = (Array.isArray(list) ? list : list?.gifts || []).map(g => ({
+      name: g.name,
+      diamonds: g.diamond_count ?? g.diamondCount,
+      img: g.image?.url_list?.[0] || g.image?.urlList?.[0] || g.icon?.url_list?.[0] || ''
+    })).filter(g => g.name && g.img);
+    if (arr.length) { giftList = arr; broadcast({ type: 'gifts', list: arr }); console.log(`[hediyeler] ${arr.length} hediye resmi yüklendi`); }
+  }).catch(e => console.log('[hediye listesi alınamadı]', e?.message || e));
 }
 
 // ---------- test olayları ----------
@@ -162,6 +180,7 @@ function sendTest() {
 // ---------- ekrandan gelen komutlar ----------
 wss.on('connection', ws => {
   ws.send(JSON.stringify({ type: 'status', ...status }));
+  if (giftList.length) ws.send(JSON.stringify({ type: 'gifts', list: giftList }));
   ws.on('message', raw => {
     let m; try { m = JSON.parse(raw); } catch { return; }
     if (m.type === 'connect') start(m.username);

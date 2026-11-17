@@ -116,6 +116,18 @@ function hit(n,dm,x,y){
  if(F.hp<=0){F.win=6;F.top=Object.entries(F.dmg).sort((a,b)=>b[1]-a[1]).slice(0,3);shake=14;for(let i=0;i<40;i++)F.fx.push({k:'conf',x:rnd(0,W),y:rnd(-250,0),vy:rnd(120,260),c:pick(['#e2b04a','#c0262d','#fff','#2f6b45']),life:6})}
 }
 function big(s){F.fx.push({k:'big',s,life:2.2})}
+/* ---------- hediye rehberi ---------- */
+const TIERS=[
+ {k:'okcu',ex:'Gül',em:'🌹',match:['rose','gül'],unit:'🏹 Okçu'},
+ {k:'top',ex:'Donut',em:'🍩',match:['doughnut','donut'],unit:'💣 Top arabası'},
+ {k:'koc',ex:'El Kalpleri',em:'🫶',match:['hand hearts','el kalp'],unit:'🐏 Koçbaşı'},
+ {k:'sultan',ex:'Aslan',em:'🦁',match:['lion','aslan'],unit:'⚔️ Sultan Ordusu'}];
+const IMG={};let imgUrls={};try{imgUrls=JSON.parse(ls.get('fk_img','{}'))||{}}catch{}
+function regImg(name,url){if(!name||!url)return;const k=String(name).toLowerCase();if(imgUrls[k]!==url){imgUrls[k]=url;ls.set('fk_img',JSON.stringify(imgUrls))}getImg(k)}
+function getImg(k){const u=imgUrls[k];if(!u)return null;if(!IMG[k]){const im=new Image();im.src=u;IMG[k]=im}return IMG[k].complete&&IMG[k].naturalWidth?IMG[k]:null}
+function tierImg(t){for(const m of t.match)for(const k in imgUrls)if(k.includes(m)){const im=getImg(k);if(im)return im}return null}
+function icon(im,em,x,y,s){if(im)cx.drawImage(im,x-s/2,y-s/2,s,s);else txt(em,x,y+2,s*.8,'#fff')}
+let pop=[],flashTier={};
 /* ---------- canlı olaylar ---------- */
 const norm=s=>String(s).toLocaleUpperCase('tr-TR').replace(/İ/g,'I').replace(/Ş/g,'S').replace(/Ç/g,'C').replace(/Ğ/g,'G').replace(/Ü/g,'U').replace(/Ö/g,'O');
 function onChat(n,t){
@@ -123,14 +135,16 @@ function onChat(n,t){
  say(n,t,isAtk?'#ffd88a':'#fff');
  if(isAtk){const now=T;if(!F.last[n]||now-F.last[n]>1.2){F.last[n]=now;spawn(n,'asker')}}
 }
-function onGift(n,g,dia,count){
- count=Math.max(1,count|0);
+function onGift(n,g,dia,count,img){
+ count=Math.max(1,count|0);regImg(g,img);
  let type,label;
  if(dia>=1000){label='SULTAN ORDUSU';type='sultan'}
  else if(dia>=100){label='Koçbaşı';type='koc'}
  else if(dia>=10){label='Top arabası';type='top'}
  else{label='Okçu';type='okcu'}
  say(n,`🎁 ${g}${count>1?' x'+count:''} → ${label}!`,'#ffb3c6');
+ const tier=TIERS.find(t=>t.k===type);flashTier[type]=2;
+ pop.push({n:short(n),g:g+(count>1?' x'+count:''),u:(count>1&&type!=='sultan'?Math.min(count,8)+' ':'')+tier.unit,em:tier.em,k:String(g).toLowerCase(),life:3});if(pop.length>2)pop.shift();
  if(type==='sultan'){big('⚔️ '+short(n)+' SULTAN ORDUSUNU GÖNDERDİ!');shake=12;
   for(let k=0;k<Math.min(count,3);k++){spawn(n,'koc');spawn(n,'top');spawn(n,'top');for(let i=0;i<8;i++)spawn(n,'asker')}
   hit(n,Math.round(F.max*0.25*Math.min(count,3)));return}
@@ -163,14 +177,27 @@ function update(dt){
  for(const f of F.fx){f.life-=dt;if(f.k==='conf')f.y+=f.vy*dt;if(f.k==='num')f.y-=30*dt;if(f.k==='heart')f.y-=120*dt}
  F.fx=F.fx.filter(f=>f.life>0);
  for(const m of chat)m.life-=dt;chat=chat.filter(m=>m.life>0);
+ for(const q of pop)q.life-=dt;pop=pop.filter(q=>q.life>0);for(const k in flashTier)flashTier[k]=Math.max(0,flashTier[k]-dt);
 }
 /* ---------- çiz ---------- */
 function banner(){
  cx.fillStyle='#4a121c';rr(14,10,512,98,10);cx.fill();cx.strokeStyle='#e2b04a';cx.lineWidth=2;cx.stroke();
  cx.strokeStyle='rgba(226,176,74,.5)';cx.beginPath();cx.moveTo(270,18);cx.lineTo(270,72);cx.moveTo(26,76);cx.lineTo(514,76);cx.stroke();
  serif('Saldırıya katıl',142,34,23,'#f6ead6');txt('SALDIR yaz',142,60,17,'#f6ead6',800);
- serif('Hediye = Güç',398,34,23,'#f6ead6');txt('🌹 Okçu  ·  10🪙 Top',398,60,16,'#f6ead6',800);
- txt('100🪙 Koçbaşı  ·  1000🪙 Sultan Ordusu  ·  ❤️ Beğeni de vurur',270,92,13,'#e9cf9a',600);
+ serif('Hediye gönder',398,34,23,'#f6ead6');txt('Orduna birlik çağır',398,60,17,'#f6ead6',800);
+ txt('⬇ Hangi hediye ne getirir: soldaki rehbere bak  ·  ❤️ Beğeni de vurur',270,92,13,'#e9cf9a',600);
+}
+function legend(){const x=12,y=384,w=184,h=36+TIERS.length*46+18;
+ cx.fillStyle='rgba(40,10,15,.82)';rr(x,y,w,h,12);cx.fill();cx.strokeStyle='rgba(226,176,74,.7)';cx.lineWidth=1.5;cx.stroke();
+ txt('🎁 Hediye rehberi',x+w/2,y+18,14,'#e2b04a',800);
+ TIERS.forEach((t,i)=>{const ry=y+38+i*46+18,f=flashTier[t.k]||0;
+  if(f>0){cx.fillStyle=`rgba(226,176,74,${Math.min(.65,f*.35)})`;rr(x+4,ry-20,w-8,40,10);cx.fill()}
+  icon(tierImg(t),t.em,x+25,ry,32);txt(t.ex,x+48,ry-9,14,'#fff',800,'left');txt('→ '+t.unit,x+48,ry+10,12,'#ffd88a',600,'left')});
+ txt('Aynı değerdeki her hediye geçerli',x+w/2,y+h-12,11,'#d8bea0',600);
+}
+function pops(){pop.forEach((q,i)=>{const y=700-(pop.length-1-i)*60,a=Math.min(1,q.life*2,(3-q.life)*6);cx.globalAlpha=a;
+ cx.fillStyle='rgba(40,10,15,.92)';rr(120,y-26,400,52,26);cx.fill();cx.strokeStyle='#e2b04a';cx.lineWidth=2;cx.stroke();
+ icon(getImg(q.k),q.em,148,y,36);txt(q.n+'  ·  '+q.g,174,y-10,14,'#fff',800,'left');txt('→ '+q.u+' geldi!',174,y+11,14,'#ffd88a',700,'left');cx.globalAlpha=1})
 }
 function draw(){
  let g=cx.createLinearGradient(0,0,0,340);g.addColorStop(0,'#f3c98d');g.addColorStop(1,'#e59b62');cx.fillStyle=g;cx.fillRect(0,0,W,340);
@@ -225,6 +252,7 @@ function draw(){
   top.forEach(([n,v],i)=>{txt(`${i+1}. ${n.length>11?n.slice(0,10)+'…':n}`,376,441+i*22,12,'#fff',600,'left');txt(String(Math.round(v)),516,441+i*22,12,'#ffd88a',800,'right')})}
  if(!F.u.length&&!F.win){const a=.6+Math.sin(T*3)*.4;cx.globalAlpha=a;pill(270,560,'⚔️ SALDIR yaz, ordu seni bekliyor!','rgba(74,18,28,.9)','#fff',20);cx.globalAlpha=1}
  const bf=F.fx.find(f=>f.k==='big');if(bf){cx.globalAlpha=Math.min(1,bf.life*2);pill(270,460,bf.s,'rgba(226,176,74,.95)','#3a0f14',17);cx.globalAlpha=1}
+ if(!F.win){legend();pops()}
  banner();
  if(F.win){cx.fillStyle='rgba(30,5,10,.75)';cx.fillRect(0,380,W,330);serif('KALE DÜŞTÜ!',270,430,52,'#e2b04a');
   F.top.forEach(([n,v],i)=>pill(270,500+i*52,`${['🥇','🥈','🥉'][i]}  ${short(n)}  ·  ${Math.round(v)} hasar`,'rgba(226,176,74,.95)','#3a0f14',20));
@@ -259,7 +287,8 @@ function openWS(){
  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch{return}
   if(m.type==='status'){link=m;showStatus()}
   if(m.type==='chat')onChat(m.user,m.text);
-  if(m.type==='gift')onGift(m.user,m.gift,m.diamonds,m.count);
+  if(m.type==='gift')onGift(m.user,m.gift,m.diamonds,m.count,m.img);
+  if(m.type==='gifts'&&Array.isArray(m.list))m.list.forEach(g=>regImg(g.name,g.img));
   if(m.type==='like')onLike(m.user,m.count);
   if(m.type==='follow')onFollow(m.user,'takip etti');
   if(m.type==='share')onFollow(m.user,'yayını paylaştı');
